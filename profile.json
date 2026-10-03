@@ -1,0 +1,36 @@
+{
+  "name": "Maya",
+  "allergens": {
+    "peanuts": [
+      "peanuts",
+      "peanut",
+      "groundnut",
+      "satay",
+      "arachis"
+    ],
+    "tree nuts": [
+      "tree nuts",
+      "almond",
+      "cashew",
+      "walnut",
+      "pecan",
+      "pistachio",
+      "hazelnut",
+      "praline",
+      "pesto",
+      "marzipan"
+    ],
+    "shellfish": [
+      "shellfish",
+      "shrimp",
+      "prawn",
+      "crab",
+      "lobster",
+      "scallop",
+      "clam",
+      "mussel",
+      "oyster"
+    ]
+  },
+  "notes": "Anaphylactic to peanuts - cross-contact (shared fryers, woks) matters. Carries an EpiPen."
+}

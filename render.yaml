@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: safeplate
+    runtime: python
+    plan: free
+    buildCommand: "true"  # stdlib only, nothing to install
+    startCommand: python app.py
+    healthCheckPath: /profile
+    envVars:
+      - key: GEMINI_API_KEY      # hosted Gemma: https://aistudio.google.com/apikey
+        sync: false
+      - key: ELEVENLABS_API_KEY  # optional; browser voice if unset
+        sync: false
+      - key: APP_PASSWORD        # login is user "friend" + this password
+        generateValue: true

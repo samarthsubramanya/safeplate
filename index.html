@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SafePlate</title>
+<style>
+  :root { --bg:#faf7f2; --card:#fff; --ink:#222; --muted:#666; --line:#e5e0d8;
+          --safe:#1f7a3f; --ask:#a86500; --avoid:#b3261e; --accent:#2d5be3; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16151a; --card:#211f26; --ink:#eee; --muted:#aaa; --line:#34313b;
+            --safe:#5fd08a; --ask:#f0b44c; --avoid:#ff7b72; --accent:#7d9cff; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.45 system-ui, sans-serif; }
+  main { max-width:640px; margin:0 auto; padding:16px; }
+  h1 { margin:8px 0 0; font-size:1.6rem; } .sub { color:var(--muted); margin:0 0 16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px; }
+  label { display:block; font-weight:600; margin:10px 0 4px; }
+  input[type=text], textarea { width:100%; padding:10px; border:1px solid var(--line); border-radius:8px;
+          background:var(--bg); color:var(--ink); font:inherit; }
+  button { width:100%; padding:14px; border:0; border-radius:10px; background:var(--accent); color:#fff;
+          font:600 1.05rem system-ui; margin-top:12px; cursor:pointer; }
+  button:disabled { opacity:.5; } button.secondary { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+  #preview { max-width:100%; border-radius:8px; margin-top:10px; display:none; }
+  .dish { border-left:6px solid; padding:10px 12px; margin:10px 0; border-radius:8px; background:var(--card); border-top:1px solid var(--line); border-right:1px solid var(--line); border-bottom:1px solid var(--line); }
+  .dish.safe { border-left-color:var(--safe); } .dish.ask { border-left-color:var(--ask); } .dish.avoid { border-left-color:var(--avoid); }
+  .tag { font-weight:700; font-size:.8rem; text-transform:uppercase; letter-spacing:.04em; }
+  .safe .tag { color:var(--safe); } .ask .tag { color:var(--ask); } .avoid .tag { color:var(--avoid); }
+  .q { color:var(--muted); font-style:italic; margin-top:4px; }
+  .err { color:var(--avoid); } details summary { cursor:pointer; font-weight:600; }
+  .fine { color:var(--muted); font-size:.85rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>SafePlate</h1>
+  <p class="sub" id="who">Menu checker that runs entirely on this laptop.</p>
+
+  <div class="card">
+    <label for="photo">1. Snap or upload the menu</label>
+    <input id="photo" type="file" accept="image/*" capture="environment">
+    <img id="preview" alt="Menu preview">
+    <label for="text">…or paste the menu text</label>
+    <textarea id="text" rows="4" placeholder="Pad Thai - rice noodles, egg, tofu, crushed peanuts"></textarea>
+    <button id="go">Check this menu</button>
+  </div>
+
+  <button class="secondary" id="say" hidden>🔊 Read it to me</button>
+  <div id="out" aria-live="polite"></div>
+
+  <details class="card">
+    <summary>Allergy profile</summary>
+    <label for="pname">Name</label><input id="pname" type="text">
+    <label for="pall">Allergens, one per line: <code>allergen: keyword, keyword</code></label>
+    <textarea id="pall" rows="5"></textarea>
+    <label for="pnotes">Notes for the model</label><textarea id="pnotes" rows="2"></textarea>
+    <button class="secondary" id="save">Save profile</button>
+  </details>
+  <p class="fine">AI can miss things. Always confirm with staff, and carry your medication.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let image = null;
+
+async function loadProfile() {
+  const p = await (await fetch('/profile')).json();
+  $('who').textContent = `Checking menus for ${p.name}: ${Object.keys(p.allergens).join(', ')}. Runs entirely on this laptop.`;
+  $('pname').value = p.name;
+  $('pall').value = Object.entries(p.allergens).map(([a, w]) => `${a}: ${w.join(', ')}`).join('\n');
+  $('pnotes').value = p.notes || '';
+}
+
+$('photo').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const img = new Image();
+  img.onload = () => {  // shrink to 1280px so local inference stays fast
+    const s = Math.min(1, 1280 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = img.width * s; c.height = img.height * s;
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    const url = c.toDataURL('image/jpeg', 0.85);
+    image = url.split(',')[1];
+    $('preview').src = url; $('preview').style.display = 'block';
+  };
+  img.src = URL.createObjectURL(f);
+};
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const LABEL = { safe: 'Looks safe', ask: 'Ask first', avoid: 'Avoid' };
+
+let summary = '';
+const names = (ds, v) => ds.filter(x => x.verdict === v);
+function buildSummary(ds) {
+  const avoid = names(ds, 'avoid'), ask = names(ds, 'ask'), safe = names(ds, 'safe');
+  return [
+    avoid.length && `Avoid: ${avoid.map(x => x.name).join(', ')}.`,
+    ...ask.map(x => `Ask about ${x.name}. ${x.ask_server}`),
+    safe.length && `Looks safe: ${safe.map(x => x.name).join(', ')}.`,
+  ].filter(Boolean).join(' ');
+}
+
+$('say').onclick = async () => {
+  $('say').disabled = true;
+  try {
+    const r = await fetch('/speak', { method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ text: summary }) });
+    if (!r.ok) throw new Error('no ElevenLabs');
+    const audio = new Audio(URL.createObjectURL(await r.blob()));
+    audio.onended = () => $('say').disabled = false;
+    await audio.play();
+  } catch {  // offline or no key: the browser's built-in voice still works
+    const u = new SpeechSynthesisUtterance(summary);
+    u.onend = () => $('say').disabled = false;
+    speechSynthesis.speak(u);
+  }
+};
+
+$('go').onclick = async () => {
+  $('go').disabled = true; $('say').hidden = true;
+  $('out').innerHTML = '<div class="card">Reading the menu with Gemma… (~15s)</div>';
+  try {
+    const r = await fetch('/check', { method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ image, text: $('text').value }) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    $('out').innerHTML = d.dishes.length ? d.dishes.map(x => `
+      <div class="dish ${x.verdict}">
+        <div class="tag">${LABEL[x.verdict]}${x.flagged_by ? ' · ' + esc(x.flagged_by) : ''}</div>
+        <strong>${esc(x.name)}</strong>
+        <div>${esc(x.reason)}</div>
+        ${x.ask_server ? `<div class="q">Ask: “${esc(x.ask_server)}”</div>` : ''}
+      </div>`).join('') : '<div class="card">No dishes found. Try a clearer photo.</div>';
+    summary = buildSummary(d.dishes);
+    $('say').hidden = !summary; $('say').disabled = false;
+  } catch (e) {
+    $('out').innerHTML = `<div class="card err">${esc(e.message)}</div>`;
+  }
+  $('go').disabled = false;
+};
+
+$('save').onclick = async () => {
+  const allergens = {};
+  for (const line of $('pall').value.split('\n')) {
+    const [a, w = ''] = line.split(':');
+    if (a.trim()) allergens[a.trim()] = [a.trim(), ...w.split(',').map(s => s.trim()).filter(Boolean)];
+  }
+  await fetch('/profile', { method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ name: $('pname').value.trim() || 'my friend', allergens, notes: $('pnotes').value }) });
+  loadProfile();
+};
+
+loadProfile();
+</script>
+</body>
+</html>
