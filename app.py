@@ -1,5 +1,5 @@
 """SafePlate: snap a menu, get allergy verdicts from a local Gemma 3. Stdlib only."""
-import base64, json, os, re, urllib.request
+import base64, json, os, re, urllib.error, urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -7,7 +7,7 @@ HERE = Path(__file__).parent
 PROFILE = HERE / "profile.json"
 OLLAMA = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")  # set -> hosted Gemma (Render); unset -> local Ollama
-MODEL = os.environ.get("MODEL", "gemma-3-27b-it" if GEMINI_KEY else "gemma3:4b")
+MODEL = os.environ.get("MODEL", "gemma-4-26b-a4b-it" if GEMINI_KEY else "gemma3:4b")
 ELEVEN_KEY = os.environ.get("ELEVENLABS_API_KEY")
 VOICE = os.environ.get("ELEVENLABS_VOICE", "JBFqnCBsd6RMkjVDRZzb")
 PASSWORD = os.environ.get("APP_PASSWORD")  # set it on any public deploy
@@ -62,8 +62,11 @@ def safety_net(dishes, profile):
 
 def post(url, payload, headers):
     req = urllib.request.Request(url, json.dumps(payload).encode(), {"Content-Type": "application/json", **headers})
-    with urllib.request.urlopen(req, timeout=300) as r:
-        return r.read()
+    try:
+        with urllib.request.urlopen(req, timeout=300) as r:
+            return r.read()
+    except urllib.error.HTTPError as e:  # show the provider's reason, not just "404"
+        raise RuntimeError(f"{e.code} from {url.split('?')[0]}: {e.read()[:300].decode(errors='replace')}")
 
 
 def parse_dishes(text):
@@ -79,7 +82,8 @@ def ask_gemma(prompt, image_b64=None):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
         out = json.loads(post(url, {"contents": [{"parts": parts}], "generationConfig": {"temperature": 0}},
                               {"x-goog-api-key": GEMINI_KEY}))
-        return parse_dishes(out["candidates"][0]["content"]["parts"][0]["text"])
+        parts = out["candidates"][0]["content"]["parts"]  # Gemma 4 may prepend thought parts
+        return parse_dishes("".join(p.get("text", "") for p in parts if not p.get("thought")))
     msg = {"role": "user", "content": prompt}
     if image_b64:
         msg["images"] = [image_b64]

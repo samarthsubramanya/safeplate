@@ -20,7 +20,7 @@ To use it from a phone at the table, connect the phone to the same Wi‑Fi and o
 
 ## Deploy to Render (free)
 
-Render's free tier has no GPU, so the hosted version calls the **same Gemma family through Google's Gemini API** (`gemma-3-27b-it`, which has a free tier) instead of local Ollama.
+Render's free tier has no GPU, so the hosted version calls the **same Gemma family through Google's Gemini API** (`gemma-4-26b-a4b-it`, which has a free tier) instead of local Ollama.
 
 1. Push this folder to a GitHub repo.
 2. In Render, choose **New → Blueprint** and pick the repo. It reads `render.yaml`.
@@ -33,7 +33,7 @@ Free instances sleep after 15 idle minutes, so the first request afterwards take
 
 ```
 phone camera ─► index.html (resizes to 1280px) ─► app.py ─┬─► Ollama /api/chat (gemma3:4b, local)       ← default
-                                                          └─► Gemini API (gemma-3-27b-it, hosted)       ← if GEMINI_API_KEY
+                                                          └─► Gemini API (gemma-4-26b-a4b-it, hosted)       ← if GEMINI_API_KEY
                                                      ─► keyword safety net ─► sorted verdicts
 "Read it to me" ─► /speak ─► ElevenLabs TTS (if ELEVENLABS_API_KEY) or the browser's own voice (offline)
 ```
@@ -50,7 +50,7 @@ phone camera ─► index.html (resizes to 1280px) ─► app.py ─┬─► Ol
 | `ELEVENLABS_API_KEY` | unset → browser speech. Set → ElevenLabs voice |
 | `ELEVENLABS_VOICE` | `JBFqnCBsd6RMkjVDRZzb` |
 | `APP_PASSWORD` | unset → no login. **Set it on any public URL** (user `friend`) |
-| `MODEL` | `gemma3:4b` locally, `gemma-3-27b-it` hosted (try `gemma3:12b` for better accuracy, or `gemma3:1b` with pasted text only) |
+| `MODEL` | `gemma3:4b` locally, `gemma-4-26b-a4b-it` hosted (try `gemma3:12b` for better accuracy, or `gemma3:1b` with pasted text only) |
 | `OLLAMA_URL` | `http://localhost:11434` |
 | `PORT` | `8000` |
 
