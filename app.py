@@ -106,7 +106,7 @@ class Handler(BaseHTTPRequestHandler):
         return json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
 
     def _authed(self):
-        if not PASSWORD:
+        if not PASSWORD or self.path == "/healthz":  # Render's health check can't log in
             return True
         want = "Basic " + base64.b64encode(f"friend:{PASSWORD}".encode()).decode()
         if self.headers.get("Authorization") == want:
@@ -120,9 +120,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self._authed():
             return
+        if self.path == "/healthz":
+            return self._send(200, {"ok": True})
         if self.path == "/profile":
             return self._send(200, load_profile())
         self._send(200, (HERE / "index.html").read_bytes(), "text/html; charset=utf-8")
+
+    def do_HEAD(self):  # Render probes with HEAD /
+        self.send_response(200)
+        self.end_headers()
 
     def do_POST(self):
         if not self._authed():

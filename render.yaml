@@ -5,6 +5,7 @@ services:
     plan: free
     buildCommand: "true"  # stdlib only, nothing to install
     startCommand: python app.py
+    healthCheckPath: /healthz
     envVars:
       - key: GEMINI_API_KEY      # hosted Gemma: https://aistudio.google.com/apikey
         sync: false
