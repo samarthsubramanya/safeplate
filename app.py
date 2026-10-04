@@ -152,5 +152,5 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     print(f"SafePlate on http://localhost:{port} using {MODEL} via {'Gemini API' if GEMINI_KEY else 'Ollama'}"
-          f", voice: {'ElevenLabs' if ELEVEN_KEY else 'browser'}, password: {'on' if PASSWORD else 'off'}")
+          f", voice: {'ElevenLabs' if ELEVEN_KEY else 'browser'}, password: {'on' if PASSWORD else 'off'}", flush=True)
     ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
